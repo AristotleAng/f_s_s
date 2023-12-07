@@ -4,21 +4,12 @@ from .config import device
 if device=='gpu':
     import tensorflow as tf
 
-def fft_multiply(A, B,u):
-    # 补零
-    size = 1
-    while size < len(A) + len(B) - 1:
-        size *= 2
-    
-    if device=='cpu':
-        # FFT计算
-        fft_A = np.fft.fft(A, size)
-        fft_B = np.fft.fft(B, size)
-        # 逐点相乘
-        fft_result = fft_A * fft_B
-        # IFFT计算，得到乘法结果
-        result = np.fft.ifft(fft_result).real
-    elif device=='gpu':
+    def fft_multiply(A, B,u):
+        # 补零
+        size = 1
+        while size < len(A) + len(B) - 1:
+            size *= 2
+
         # FFT计算
         shape_a=len(A)
         shape_b=len(B)
@@ -30,28 +21,73 @@ def fft_multiply(A, B,u):
         fft_result = fft_A * fft_B
         result = tf.signal.ifft(fft_result)[:shape_a+shape_b - 1]
         result = tf.math.real(result).numpy()
-        
-    # 四舍五入，处理浮点误差
-    result = np.round(result).astype(int)
-    
-    return result[:u+1]
 
-def fft_multiply_2d(A, B, u):
-    # 获取A和B的shape
-    shape_A = A.shape
-    shape_B = B.shape
-    
-    # 补零，确保长度为2的幂
-    size_x = 1
-    size_y = 1
-    while size_x < shape_A[0] + shape_B[0] - 1:
-        size_x *= 2
-    while size_y < shape_A[1] + shape_B[1] - 1:
-        size_y *= 2
-    
-    # FFT计算
-    if device=='cpu':
-    
+        # 四舍五入，处理浮点误差
+        result = np.round(result).astype(int)
+
+        return result[:u+1]
+
+    def fft_multiply_2d(A, B, u):
+        # 获取A和B的shape
+        shape_A = A.shape
+        shape_B = B.shape
+
+        # 补零，确保长度为2的幂
+        size_x = 1
+        size_y = 1
+        while size_x < shape_A[0] + shape_B[0] - 1:
+            size_x *= 2
+        while size_y < shape_A[1] + shape_B[1] - 1:
+            size_y *= 2
+
+        a_padded = np.pad(A, ((0, size_x - shape_A[0]), (0, size_y - shape_A[1])))
+        b_padded = np.pad(B, ((0, size_x - shape_B[0]), (0, size_y - shape_B[1])))
+        fft_A=tf.signal.fft2d(tf.constant(a_padded,dtype=tf.complex64))
+        fft_B=tf.signal.fft2d(tf.constant(b_padded,dtype=tf.complex64))
+        fft_result = fft_A * fft_B
+        result = tf.math.real(tf.signal.ifft2d(fft_result))[:shape_A[0]+shape_B[0]-1,:shape_A[1]+shape_B[1]-1].numpy()
+
+        # 四舍五入，处理浮点误差
+        result = np.round(result).astype(int)
+
+        return result[:u+1]
+
+elif device=='cpu':
+    def fft_multiply(A, B,u):
+        # 补零
+        size = 1
+        while size < len(A) + len(B) - 1:
+            size *= 2
+
+        # FFT计算
+        fft_A = np.fft.fft(A, size)
+        fft_B = np.fft.fft(B, size)
+        # 逐点相乘
+        fft_result = fft_A * fft_B
+        # IFFT计算，得到乘法结果
+        result = np.fft.ifft(fft_result).real
+
+
+        # 四舍五入，处理浮点误差
+        result = np.round(result).astype(int)
+
+        return result[:u+1]
+
+    def fft_multiply_2d(A, B, u):
+        # 获取A和B的shape
+        shape_A = A.shape
+        shape_B = B.shape
+
+        # 补零，确保长度为2的幂
+        size_x = 1
+        size_y = 1
+        while size_x < shape_A[0] + shape_B[0] - 1:
+            size_x *= 2
+        while size_y < shape_A[1] + shape_B[1] - 1:
+            size_y *= 2
+
+        # FFT计算
+
         fft_A = np.fft.fft2(A, s=(size_x, size_y))
         fft_B = np.fft.fft2(B, s=(size_x, size_y))
 
@@ -60,19 +96,11 @@ def fft_multiply_2d(A, B, u):
 
         # IFFT计算，得到乘法结果
         result = np.fft.ifft2(fft_result).real
-        
-    elif device=='gpu':
-        a_padded = np.pad(A, ((0, size_x - shape_A[0]), (0, size_y - shape_A[1])))
-        b_padded = np.pad(B, ((0, size_x - shape_B[0]), (0, size_y - shape_B[1])))
-        fft_A=tf.signal.fft2d(tf.constant(a_padded,dtype=tf.complex64))
-        fft_B=tf.signal.fft2d(tf.constant(b_padded,dtype=tf.complex64))
-        fft_result = fft_A * fft_B
-        result = tf.math.real(tf.signal.ifft2d(fft_result))[:shape_A[0]+shape_B[0]-1,:shape_A[1]+shape_B[1]-1].numpy()
-    
-    # 四舍五入，处理浮点误差
-    result = np.round(result).astype(int)
-    
-    return result[:u+1]
+
+        # 四舍五入，处理浮点误差
+        result = np.round(result).astype(int)
+
+        return result[:u+1]
     
 def MincowskySum(A,B,u):
     
